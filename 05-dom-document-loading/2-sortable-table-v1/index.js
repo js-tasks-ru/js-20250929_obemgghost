@@ -68,6 +68,7 @@ export default class SortableTable {
   createTemplate() {
     return `
     <div class="sortable-table">
+        <div class="sortable-table__loading-line">Loading...</div>
         <div data-element="header" class="sortable-table__header sortable-table__row">
             ${this.createTableHeaderTemplate()}
         </div>

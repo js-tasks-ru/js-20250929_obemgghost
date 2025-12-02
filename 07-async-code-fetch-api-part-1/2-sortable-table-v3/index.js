@@ -4,24 +4,36 @@ import SortableTableV2 from "../../06-events-practice/1-sortable-table-v2/index.
 const BACKEND_URL = 'https://course-js.javascript.ru';
 
 export default class SortableTable extends SortableTableV2 {
+
+  INFINITY_SCROLL_GAP = 40;
+  LOADING_PRODUCT_STEP = 10;
   constructor(headersConfig, settings) {
     super(headersConfig, {
       isSortLocally: false,
-      ...settings           
+      ...settings
     });
+
+    this.start = 0;
+    this.end = this.LOADING_PRODUCT_STEP;
+  }
+
+  createFetchURL(id, order, startProduct = 0, endProduct = 30) {
+    const params = new URLSearchParams({
+      _embed: 'subcategory.category',
+      _sort: id,
+      _order: order,
+      _start: startProduct,
+      _end: endProduct
+    });
+    return `${BACKEND_URL}/${this.url}?${params.toString()}`;
   }
 
   async sortOnServer (id, order) {
-    try {
-      const params = new URLSearchParams({
-        _embed: 'subcategory.category',
-        _sort: id,
-        _order: order,
-        _start: 0,
-        _end: 30
-      });
+    this.isLoading = true;
+    this.element.classList.add('sortable-table_loading');
 
-      const fetchUrl = BACKEND_URL + `/${this.url}/?${params.toString()}`;
+    try {
+      const fetchUrl = this.createFetchURL(id, order, 0, this.end);
       const response = await fetch(fetchUrl);
 
       if (!response.ok) {
@@ -29,9 +41,66 @@ export default class SortableTable extends SortableTableV2 {
       }
 
       this.data = await response.json();
-      this.render();
+      if (this.data.length) {
+        this.updateTableBody();
+      } else {
+        this.subElements.body.innerHTML = 'Нет данных для отображения';
+      }
+
     } catch (e) {
       console.error(e);
+    } finally {
+      this.isLoading = false;
+      this.element.classList.remove('sortable-table_loading');
+    }
+  }
+
+  updateTableBody() {
+    if (this.subElements.body) {
+      this.subElements.body.innerHTML = this.createTableBodyTemplate();
+    }
+
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  setListeners() {
+    super.setListeners();
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  onWindowScroll = () => {
+    if (this.isLoading) {
+      return;
+    }
+    const { bottom } = this.element.getBoundingClientRect();
+    const { clientHeight } = document.documentElement;
+    if (bottom < clientHeight + this.INFINITY_SCROLL_GAP) {
+      this.loadMoreData();
+    }
+  }
+
+  async loadMoreData() {
+    this.isLoading = true;
+    this.start = this.end;
+    this.end = this.start + this.LOADING_PRODUCT_STEP;
+
+    try {
+      const fetchUrl = this.createFetchURL(this.sorted.id, this.sorted.order, this.start, this.end);
+      const response = await fetch(fetchUrl);
+      const newData = await response.json();
+
+      if (newData.length > 0) {
+        this.data.push(...newData);
+        this.updateTableBody();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isLoading = false;
     }
   }
 }
