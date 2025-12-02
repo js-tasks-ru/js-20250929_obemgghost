@@ -68,6 +68,7 @@ export default class SortableTable {
   createTemplate() {
     return `
     <div class="sortable-table">
+        <div class="sortable-table__loading-line">Loading...</div>
         <div data-element="header" class="sortable-table__header sortable-table__row">
             ${this.createTableHeaderTemplate()}
         </div>
@@ -85,7 +86,7 @@ export default class SortableTable {
     `;
   }
 
-  sort = (field, order) => {
+  sort(field, order) {
     this.sorted.id = field;
     this.sorted.order = order;
 
@@ -106,6 +107,10 @@ export default class SortableTable {
     };
 
     this.data.sort(compareFn);
+    this.render();
+  }
+
+  render() {
     const newElement = this.createElement();
     this.element.replaceWith(newElement);
     this.element = newElement;

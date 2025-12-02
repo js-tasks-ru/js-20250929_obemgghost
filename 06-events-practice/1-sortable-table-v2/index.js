@@ -1,16 +1,18 @@
-import SortableTableV1 from "./sortable-table-v1.js";
+import SortableTableV1 from "../../05-dom-document-loading/2-sortable-table-v1/index.js";
 
 export default class SortableTableV2 extends SortableTableV1 {
-
   constructor(headersConfig, {
     data = [],
-    sorted = {}
+    sorted = {},
+    url = '',
+    isSortLocally = true
   } = {}) {
     super(headersConfig, data);
-
     this.sorted = sorted;
-    // this.sort(this.sorted.id, this.sorted.order);
-    this.setListeners();
+    this.url = url;
+    this.isSortLocally = isSortLocally;
+
+    this.sort(this.sorted.id, this.sorted.order);
   }
 
   createSortArrowTemplate() {
@@ -36,11 +38,6 @@ export default class SortableTableV2 extends SortableTableV1 {
     this.element.addEventListener('pointerdown', this.onTableCellClick);
   }
 
-  updateElement() {
-    super.updateElement();
-    this.setListeners();
-  }
-
   reverseOrder(order) {
     return order === 'asc' ? 'desc' : 'asc';
   }
@@ -63,8 +60,29 @@ export default class SortableTableV2 extends SortableTableV1 {
     this.sort(this.sorted.id, this.sorted.order);
   }
 
+  async sort(sortField, sortOrder) {
+    if (this.isSortLocally) {
+      this.sortOnClient(sortField, sortOrder);
+    } else {
+      await this.sortOnServer(sortField, sortOrder);
+    }
+  }
+
+  sortOnClient(sortField, sortOrder) {
+    super.sort(sortField, sortOrder);
+  }
+
+  async sortOnServer(sortField, sortOrder) {
+    throw new Error("not implemented");
+  }
+
+  render() {
+    super.render();
+    this.setListeners();
+  }
+
   destroy() {
-    this.remove();
     this.element.removeEventListener('pointerdown', this.onTableCellClick);
+    this.remove();
   }
 }

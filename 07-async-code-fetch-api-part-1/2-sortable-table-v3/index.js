@@ -7,97 +7,14 @@ export default class SortableTable extends SortableTableV2 {
 
   INFINITY_SCROLL_GAP = 40;
   LOADING_PRODUCT_STEP = 10;
-
-  constructor(headersConfig, {
-    data = [],
-    sorted = {},
-    url = '',
-    isSortLocally = false
-  } = {}) {
-    super(headersConfig, { data, sorted });
-    this.url = url;
-    this.isSortLocally = isSortLocally;
+  constructor(headersConfig, settings) {
+    super(headersConfig, {
+      isSortLocally: false,
+      ...settings
+    });
 
     this.start = 0;
     this.end = this.LOADING_PRODUCT_STEP;
-
-    this.render();
-  }
-
-  sort(id, order) {
-    if (this.isSortLocally) {
-      this.sortOnClient(id, order);
-    } else {
-      this.sortOnServer(id, order);
-    }
-  }
-
-  sortOnClient(id, order) {
-    super.sort(id, order);
-  }
-
-  async sortOnServer(id, order) {
-    this.isLoading = true;
-    try {
-      const fetchUrl = this.createFetchURL(id, order, 0, this.end);
-      const response = await fetch(fetchUrl);
-      this.data = await response.json();
-      this.updateElement();
-
-    } catch (e) {
-      console.error(e);
-    } finally {
-      this.isLoading = false;
-    }
-  }
-
-  async render() {
-    if (this.isSortLocally) {
-      this.sortOnClient(this.sorted.id, this.sorted.order);
-    } else {
-      await this.sortOnServer(this.sorted.id, this.sorted.order);
-    }
-  }
-
-  onTableCellClick = (event) => {
-    const tableCell = event.target.closest('.sortable-table__cell');
-    if (!tableCell || tableCell.dataset.sortable === 'false') {
-      return;
-    }
-
-    if (this.sorted.id === tableCell.dataset.id) {
-      const newSortOrder = this.reverseOrder(this.sorted.order);
-      tableCell.dataset.order = newSortOrder;
-      this.sorted.order = newSortOrder;
-    } else {
-      this.sorted.id = tableCell.dataset.id;
-      this.sorted.order = 'desc';
-    }
-
-    if (this.isSortLocally) {
-      this.sortOnClient(this.sorted.id, this.sorted.order);
-    } else {
-      this.sortOnServer(this.sorted.id, this.sorted.order);
-    }
-  }
-
-  setListeners() {
-    super.setListeners();
-    if (!this.isSortLocally) {
-      document.addEventListener('scroll', this.onWindowScroll);
-    }
-  }
-
-  onWindowScroll = (e) => {
-    if (this.isLoading) {
-      return;
-    }
-    const { bottom } = this.element.getBoundingClientRect();
-    const { clientHeight } = document.documentElement;
-    if (bottom < clientHeight + this.INFINITY_SCROLL_GAP) {
-      console.log('fetch');
-      this.loadMoreData();
-    }
   }
 
   createFetchURL(id, order, startProduct = 0, endProduct = 30) {
@@ -109,6 +26,61 @@ export default class SortableTable extends SortableTableV2 {
       _end: endProduct
     });
     return `${BACKEND_URL}/${this.url}?${params.toString()}`;
+  }
+
+  async sortOnServer (id, order) {
+    this.isLoading = true;
+    this.element.classList.add('sortable-table_loading');
+
+    try {
+      const fetchUrl = this.createFetchURL(id, order, 0, this.end);
+      const response = await fetch(fetchUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      this.data = await response.json();
+      if (this.data.length) {
+        this.updateTableBody();
+      } else {
+        this.subElements.body.innerHTML = 'Нет данных для отображения';
+      }
+
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isLoading = false;
+      this.element.classList.remove('sortable-table_loading');
+    }
+  }
+
+  updateTableBody() {
+    if (this.subElements.body) {
+      this.subElements.body.innerHTML = this.createTableBodyTemplate();
+    }
+
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  setListeners() {
+    super.setListeners();
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  onWindowScroll = () => {
+    if (this.isLoading) {
+      return;
+    }
+    const { bottom } = this.element.getBoundingClientRect();
+    const { clientHeight } = document.documentElement;
+    if (bottom < clientHeight + this.INFINITY_SCROLL_GAP) {
+      this.loadMoreData();
+    }
   }
 
   async loadMoreData() {
@@ -123,17 +95,12 @@ export default class SortableTable extends SortableTableV2 {
 
       if (newData.length > 0) {
         this.data.push(...newData);
-        this.updateElement();
+        this.updateTableBody();
       }
     } catch (e) {
       console.error(e);
     } finally {
       this.isLoading = false;
     }
-  }
-
-  destroy() {
-    this.remove();
-    this.element.removeEventListener('pointerdown', this.onTableCellClick);
   }
 }
