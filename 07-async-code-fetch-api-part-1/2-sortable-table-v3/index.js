@@ -1,20 +1,106 @@
 import fetchJson from './utils/fetch-json.js';
+import SortableTableV2 from "../../06-events-practice/1-sortable-table-v2/index.js";
 
 const BACKEND_URL = 'https://course-js.javascript.ru';
 
-export default class SortableTable {
-  constructor(headersConfig, {
-    data = [],
-    sorted = {}
-  } = {}) {
+export default class SortableTable extends SortableTableV2 {
 
+  INFINITY_SCROLL_GAP = 40;
+  LOADING_PRODUCT_STEP = 10;
+  constructor(headersConfig, settings) {
+    super(headersConfig, {
+      isSortLocally: false,
+      ...settings
+    });
+
+    this.start = 0;
+    this.end = this.LOADING_PRODUCT_STEP;
   }
 
-  sortOnClient (id, order) {
-
+  createFetchURL(id, order, startProduct = 0, endProduct = 30) {
+    const params = new URLSearchParams({
+      _embed: 'subcategory.category',
+      _sort: id,
+      _order: order,
+      _start: startProduct,
+      _end: endProduct
+    });
+    return `${BACKEND_URL}/${this.url}?${params.toString()}`;
   }
 
-  sortOnServer (id, order) {
+  async sortOnServer (id, order) {
+    this.isLoading = true;
+    this.element.classList.add('sortable-table_loading');
 
+    try {
+      const fetchUrl = this.createFetchURL(id, order, 0, this.end);
+      const response = await fetch(fetchUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      this.data = await response.json();
+      if (this.data.length) {
+        this.updateTableBody();
+      } else {
+        this.subElements.body.innerHTML = 'Нет данных для отображения';
+      }
+
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isLoading = false;
+      this.element.classList.remove('sortable-table_loading');
+    }
+  }
+
+  updateTableBody() {
+    if (this.subElements.body) {
+      this.subElements.body.innerHTML = this.createTableBodyTemplate();
+    }
+
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  setListeners() {
+    super.setListeners();
+    if (!this.isSortLocally) {
+      document.addEventListener('scroll', this.onWindowScroll);
+    }
+  }
+
+  onWindowScroll = () => {
+    if (this.isLoading) {
+      return;
+    }
+    const { bottom } = this.element.getBoundingClientRect();
+    const { clientHeight } = document.documentElement;
+    if (bottom < clientHeight + this.INFINITY_SCROLL_GAP) {
+      this.loadMoreData();
+    }
+  }
+
+  async loadMoreData() {
+    this.isLoading = true;
+    this.start = this.end;
+    this.end = this.start + this.LOADING_PRODUCT_STEP;
+
+    try {
+      const fetchUrl = this.createFetchURL(this.sorted.id, this.sorted.order, this.start, this.end);
+      const response = await fetch(fetchUrl);
+      const newData = await response.json();
+
+      if (newData.length > 0) {
+        this.data.push(...newData);
+        this.updateTableBody();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isLoading = false;
+    }
   }
 }
